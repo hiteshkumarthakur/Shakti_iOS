@@ -11,12 +11,57 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     var window: UIWindow?
 
-
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
-        // Use this method to optionally configure and attach the UIWindow `window` to the provided UIWindowScene `scene`.
-        // If using a storyboard, the `window` property will automatically be initialized and attached to the scene.
-        // This delegate does not imply the connecting scene or session are new (see `application:configurationForConnectingSceneSession` instead).
-        guard let _ = (scene as? UIWindowScene) else { return }
+        guard let windowScene = (scene as? UIWindowScene) else { return }
+
+        // Build the entire UI programmatically — no storyboard needed.
+        let tabBarController = UITabBarController()
+        tabBarController.viewControllers = [
+            makeTab(HomeViewController(),  title: "Home",  systemImage: "house"),
+            makeTab(ViewController(),      title: "Input", systemImage: "text.cursor"),
+            makeTab(WebViewController(),   title: "Web",   systemImage: "globe")
+        ]
+
+        window = UIWindow(windowScene: windowScene)
+        window?.rootViewController = tabBarController
+        window?.makeKeyAndVisible()
+
+        // Handle deep link on cold start
+        if let urlContext = connectionOptions.urlContexts.first {
+            handleIncomingDeepLink(urlContext.url)
+        }
+    }
+
+    // Called when the app is already running and receives a shakti:// URL
+    func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
+        if let urlContext = URLContexts.first {
+            handleIncomingDeepLink(urlContext.url)
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func makeTab(_ vc: UIViewController, title: String, systemImage: String) -> UIViewController {
+        vc.tabBarItem = UITabBarItem(title: title, image: UIImage(systemName: systemImage), tag: 0)
+        return vc
+    }
+
+    // MARK: - Deep Link Routing
+
+    /// Routes  shakti://web?url=<encoded-url>  to the Web tab.
+    private func handleIncomingDeepLink(_ url: URL) {
+        guard url.scheme?.lowercased() == "shakti",
+              url.host?.lowercased() == "web",
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let urlValue = components.queryItems?.first(where: { $0.name == "url" })?.value,
+              let targetURL = URL(string: urlValue)
+        else { return }
+
+        guard let tabBarController = window?.rootViewController as? UITabBarController else { return }
+        tabBarController.selectedIndex = 2
+        if let webVC = tabBarController.viewControllers?[2] as? WebViewController {
+            webVC.loadURL(targetURL)
+        }
     }
 
     func sceneDidDisconnect(_ scene: UIScene) {
